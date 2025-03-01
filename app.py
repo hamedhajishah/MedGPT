@@ -22,14 +22,40 @@ def get_pdf_list():
 
 def download_pdf(file_id, filename):
     """Downloads a PDF file given its ID from the external API."""
-    response = requests.get(DOWNLOAD_FILE_URL.format(file_id), stream=True)
+    url = DOWNLOAD_FILE_URL.format(file_id)
+    print(f"Downloading from: {url}")  # Debugging print
+
+    response = requests.get(url, stream=True)
+    print(f"Response status: {response.status_code}")  # Debugging print
+
     if response.status_code == 200:
         filepath = os.path.join(DOWNLOAD_DIR, filename)
         with open(filepath, "wb") as f:
             for chunk in response.iter_content(1024):
                 f.write(chunk)
+        print(f"File saved at: {filepath}")  # Debugging print
         return filepath
+
+    print("Download failed.")  # Debugging print
     return None
+
+def download_all_pdfs():
+    """Downloads all available PDFs from the external API."""
+    pdf_list = get_pdf_list()  # Get all available PDFs
+    if not pdf_list:
+        return []
+
+    downloaded_files = []
+    
+    for pdf in pdf_list:
+        file_id = pdf.get("file_id")
+        filename = pdf.get("filename", f"file_{file_id}.pdf")  # Default filename
+        filepath = download_pdf(file_id, filename)
+
+        if filepath:
+            downloaded_files.append(filepath)
+
+    return downloaded_files
 
 def extract_text_from_pdf(filepath):
     """Extracts text from a PDF file."""
@@ -54,18 +80,13 @@ def list_pdfs():
     """Returns the list of available PDFs from the external API."""
     return jsonify(get_pdf_list())
 
-@app.route("/download", methods=["POST"])
-def download():
-    """Downloads a specific PDF given a file_id."""
-    data = request.json
-    file_id = data.get("file_id")
-    filename = data.get("filename", "downloaded_file.pdf")
-    if not file_id:
-        return jsonify({"error": "file_id parameter is required"}), 400
-    filepath = download_pdf(file_id, filename)
-    if filepath:
-        return jsonify({"message": "File downloaded successfully", "filepath": filepath})
-    return jsonify({"error": "Failed to download file"}), 500
+@app.route("/download_all", methods=["POST"])
+def download_all():
+    """Downloads all available PDFs."""
+    downloaded_files = download_all_pdfs()
+    if downloaded_files:
+        return jsonify({"message": "All files downloaded successfully", "files": downloaded_files})
+    return jsonify({"error": "Failed to download files"}), 500
 
 @app.route("/search", methods=["POST"])
 def search():
