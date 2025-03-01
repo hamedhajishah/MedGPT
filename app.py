@@ -17,37 +17,51 @@ def get_pdf_list():
     """Fetches the list of available PDF files from the external API."""
     response = requests.get(LIST_FILES_URL)
     if response.status_code == 200:
-        return response.json()
+        try:
+            data = response.json()
+            if isinstance(data, list) and all(isinstance(item, str) for item in data):
+                print("ERROR: API returned a list of strings instead of dictionaries!")
+                return []  # Avoid processing incorrect data
+            return data  # Ensure it's a list of dictionaries
+        except Exception as e:
+            print(f"JSON decoding error: {e}")
+            return []
     return []
 
 def download_pdf(file_id, filename):
     """Downloads a PDF file given its ID from the external API."""
     url = DOWNLOAD_FILE_URL.format(file_id)
-    print(f"Downloading from: {url}")  # Debugging print
+    print(f"Downloading from: {url}")
 
     response = requests.get(url, stream=True)
-    print(f"Response status: {response.status_code}")  # Debugging print
+    print(f"Response status: {response.status_code}")
 
     if response.status_code == 200:
         filepath = os.path.join(DOWNLOAD_DIR, filename)
         with open(filepath, "wb") as f:
             for chunk in response.iter_content(1024):
                 f.write(chunk)
-        print(f"File saved at: {filepath}")  # Debugging print
+        print(f"File saved at: {filepath}")
         return filepath
 
-    print("Download failed.")  # Debugging print
+    print("Download failed.")
     return None
 
 def download_all_pdfs():
     """Downloads all available PDFs from the external API."""
     pdf_list = get_pdf_list()  # Get all available PDFs
+    print(f"Received PDF list: {pdf_list}")  # Debugging print
+
     if not pdf_list:
         return []
 
     downloaded_files = []
     
     for pdf in pdf_list:
+        if not isinstance(pdf, dict):  # Ensure each item is a dictionary
+            print(f"Skipping invalid item: {pdf}")
+            continue
+
         file_id = pdf.get("file_id")
         filename = pdf.get("filename", f"file_{file_id}.pdf")  # Default filename
         filepath = download_pdf(file_id, filename)
